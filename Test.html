@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тесты по веб-программированию</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #quiz-container {
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            width: 600px;
+            max-width: 95%;
+        }
+        #setup {
+            text-align: center;
+        }
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        #file-input {
+            margin: 15px 0;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            width: 100%;
+        }
+        button {
+            background-color: #3498db;
+            color: black;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #quiz {
+            display: none;
+        }
+        #question-number {
+            font-size: 1.1em;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+        #question {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .option {
+            display: block;
+            margin-bottom: 10px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #fff;
+            transition: all 0.3s;
+            font-size: 16px;
+            text-align: left;
+        }
+        .option:hover {
+            background-color: #f0f8ff;
+            border-color: #3498db;
+        }
+        .selected {
+            background-color: #d0eaff;
+            border-color: #3498db;
+        }
+        .correct {
+            background-color: #d4edda;
+            border-color: #28a745;
+        }
+        .incorrect {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+        }
+        #submit-button {
+            background-color: #2ecc71;
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+        }
+        #submit-button:hover {
+            background-color: #27ae60;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            display: none;
+        }
+        .correct-answer {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .wrong-answer {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        #final-score {
+            font-size: 1.5em;
+            text-align: center;
+            margin: 20px 0;
+        }
+        #restart-button {
+            background-color: #e74c3c;
+            display: block;
+            margin: 0 auto;
+        }
+        #restart-button:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+<div id="quiz-container">
+    <div id="setup">
+        <h2>Тестирование по веб-программированию</h2>
+        <p>Загрузите файл с вопросами в формате .txt</p>
+        <input type="file" id="file-input" accept=".txt">
+        <div style="margin-top: 20px;">
+            <button onclick="startQuiz(true)">Режим обучения (сразу показывать ответ)</button>
+            <button onclick="startQuiz(false)">Режим тестирования (показывать результат в конце)</button>
+        </div>
+    </div>
+    <div id="quiz">
+        <div id="question-number"></div>
+        <div id="question"></div>
+        <div id="options"></div>
+        <button id="submit-button" onclick="nextQuestion()">Следующий вопрос</button>
+        <div id="result"></div>
+    </div>
+    <div id="quiz-end" style="display: none;">
+        <h2>Тестирование завершено</h2>
+        <div id="final-score"></div>
+        <button id="restart-button" onclick="restartQuiz()">Начать заново</button>
+    </div>
+</div>
+
+<script>
+let questions = [];
+let currentQuestionIndex = 0;
+let score = 0;
+let showAnswerImmediately = false;
+let userAnswers = [];
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        alert('Пожалуйста, выберите файл с вопросами!');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        parseQuestions(text);
+    };
+    reader.readAsText(file);
+}
+
+function parseQuestions(text) {
+    const questionBlocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
+    
+    questions = questionBlocks.map(block => {
+        const lines = block.split('\n').filter(line => line.trim() !== '');
+        
+        // Извлекаем вопрос (первая строка)
+        const question = lines[0].replace(/^\d+\.\s*/, '').trim();
+        
+        // Извлекаем варианты ответов (строки с A. B. C. D. E.)
+        const options = [];
+        for (let i = 1; i < lines.length; i++) {
+            if (/^[A-E]\.\s/.test(lines[i])) {
+                // Убираем буквенное обозначение (A., B. и т.д.)
+                const optionText = lines[i].replace(/^[A-E]\.\s*/, '').trim();
+                options.push(optionText);
+            }
+        }
+        
+        // Извлекаем правильный ответ (строка с ANSWER:)
+        let answer = '';
+        const answerLine = lines.find(line => line.startsWith('ANSWER:'));
+        if (answerLine) {
+            // Получаем текст правильного ответа вместо буквы
+            const answerLetter = answerLine.split('ANSWER:')[1].trim().charAt(0);
+            const answerIndex = answerLetter.charCodeAt(0) - 'A'.charCodeAt(0);
+            answer = options[answerIndex];
+        }
+        
+        return { question, options, answer };
+    }).filter(q => q.question && q.options.length > 0 && q.answer);
+    
+    if (questions.length === 0) {
+        alert('Не удалось загрузить вопросы. Проверьте формат файла.');
+    } else {
+        alert(`Успешно загружено ${questions.length} вопросов. Выберите режим тестирования.`);
+    }
+}
+
+document.getElementById('file-input').addEventListener('change', handleFileUpload);
+
+function startQuiz(showAnswer) {
+    if (questions.length === 0) {
+        alert('Пожалуйста, загрузите файл с вопросами перед началом теста.');
+        return;
+    }
+
+    showAnswerImmediately = showAnswer;
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('quiz').style.display = 'block';
+    document.getElementById('quiz-end').style.display = 'none';
+    
+    // Перемешиваем вопросы и выбираем 50 случайных
+    questions = shuffleArray(questions).slice(0, 50);
+    currentQuestionIndex = 0;
+    score = 0;
+    userAnswers = [];
+    
+    showQuestion();
+}
+
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+function showQuestion() {
+    const questionData = questions[currentQuestionIndex];
+    document.getElementById('question-number').textContent = `Вопрос ${currentQuestionIndex + 1} из ${questions.length}`;
+    document.getElementById('question').textContent = questionData.question;
+    
+    const optionsContainer = document.getElementById('options');
+    optionsContainer.innerHTML = '';
+    
+    // Перемешиваем варианты ответов для текущего вопроса
+    const shuffledOptions = shuffleArray([...questionData.options]);
+    
+    shuffledOptions.forEach((option) => {
+        const button = document.createElement('button');
+        button.classList.add('option');
+        button.textContent = option;
+        button.onclick = () => selectOption(button, option);
+        optionsContainer.appendChild(button);
+    });
+    
+    document.getElementById('submit-button').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+}
+
+function selectOption(button, selectedOption) {
+    const options = document.querySelectorAll('.option');
+    options.forEach(opt => {
+        opt.classList.remove('selected', 'correct', 'incorrect');
+        opt.disabled = false;
+    });
+    
+    button.classList.add('selected');
+    checkAnswer(selectedOption);
+}
+
+function checkAnswer(selectedOption) {
+    const questionData = questions[currentQuestionIndex];
+    const isCorrect = selectedOption === questionData.answer;
+    
+    userAnswers.push({
+        question: questionData.question,
+        userAnswer: selectedOption,
+        correctAnswer: questionData.answer,
+        isCorrect: isCorrect
+    });
+    
+    if (isCorrect) {
+        score += 2;
+    }
+    
+    if (showAnswerImmediately) {
+        const options = document.querySelectorAll('.option');
+        options.forEach(opt => {
+            opt.disabled = true;
+            if (opt.textContent === questionData.answer) {
+                opt.classList.add('correct');
+            } else if (opt === document.querySelector('.selected') && !isCorrect) {
+                opt.classList.add('incorrect');
+            }
+        });
+        
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        
+        if (isCorrect) {
+            resultDiv.textContent = 'Правильно!';
+            resultDiv.className = 'correct-answer';
+        } else {
+            resultDiv.textContent = `Неправильно. Правильный ответ: ${questionData.answer}`;
+            resultDiv.className = 'wrong-answer';
+        }
+    }
+    
+    document.getElementById('submit-button').style.display = 'block';
+}
+
+function nextQuestion() {
+    currentQuestionIndex++;
+    
+    if (currentQuestionIndex < questions.length) {
+        showQuestion();
+    } else {
+        endQuiz();
+    }
+}
+
+function endQuiz() {
+    document.getElementById('quiz').style.display = 'none';
+    const quizEnd = document.getElementById('quiz-end');
+    quizEnd.style.display = 'block';
+    
+    const percentage = Math.round((score / (questions.length * 2)) * 100);
+    document.getElementById('final-score').innerHTML = `
+        <p>Вы ответили правильно на ${score} из ${questions.length * 2} баллов</p>
+        <p>Процент правильных ответов: ${percentage}%</p>
+    `;
+    
+    if (!showAnswerImmediately) {
+        let resultsHtml = '<h3>Результаты по вопросам:</h3><ol>';
+        userAnswers.forEach((answer, index) => {
+            resultsHtml += `
+                <li>
+                    <p><strong>${answer.question}</strong></p>
+                    <p>Ваш ответ: ${answer.userAnswer} ${answer.isCorrect ? '✅' : '❌'}</p>
+                    ${!answer.isCorrect ? `<p>Правильный ответ: ${answer.correctAnswer}</p>` : ''}
+                </li>
+            `;
+        });
+        resultsHtml += '</ol>';
+        quizEnd.innerHTML += resultsHtml;
+    }
+}
+
+function restartQuiz() {
+    document.getElementById('quiz-end').style.display = 'none';
+    document.getElementById('setup').style.display = 'block';
+    document.getElementById('file-input').value = '';
+}
+</script>
+</body>
+</html>
