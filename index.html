@@ -182,36 +182,54 @@ function handleFileUpload(event) {
 }
 
 function parseQuestions(text) {
-    const questionBlocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
+    // Разделяем текст на строки и фильтруем пустые
+    const lines = text.split('\n').filter(line => line.trim() !== '');
     
-    questions = questionBlocks.map(block => {
-        const lines = block.split('\n').filter(line => line.trim() !== '');
-        
-        // Извлекаем вопрос (первая строка)
-        const question = lines[0].replace(/^\d+\.\s*/, '').trim();
-        
-        // Извлекаем варианты ответов (строки с A. B. C. D. E.)
-        const options = [];
-        for (let i = 1; i < lines.length; i++) {
-            if (/^[A-E]\.\s/.test(lines[i])) {
-                // Убираем буквенное обозначение (A., B. и т.д.)
-                const optionText = lines[i].replace(/^[A-E]\.\s*/, '').trim();
-                options.push(optionText);
+    questions = [];
+    let currentQuestion = null;
+    
+    for (const line of lines) {
+        // Если строка начинается с цифры и точки/скобки - это новый вопрос
+        if (/^\d+[\.\)]/.test(line)) {
+            if (currentQuestion) {
+                questions.push(currentQuestion);
+            }
+            currentQuestion = {
+                question: line.replace(/^\d+[\.\)]\s*/, '').trim(),
+                options: [],
+                answer: ''
+            };
+        } 
+        // Если строка начинается с буквы и точки/скобки - это вариант ответа
+        else if (/^[A-E][\.\)]/.test(line)) {
+            if (currentQuestion) {
+                const optionText = line.replace(/^[A-E][\.\)]\s*/, '').trim();
+                currentQuestion.options.push(optionText);
+            }
+        } 
+        // Если строка содержит ANSWER - это правильный ответ
+        else if (/ANSWER:/.test(line)) {
+            if (currentQuestion) {
+                const answerMatch = line.match(/ANSWER:\s*([A-E])[\.\)]/i);
+                if (answerMatch) {
+                    const answerIndex = answerMatch[1].toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+                    if (currentQuestion.options[answerIndex]) {
+                        currentQuestion.answer = currentQuestion.options[answerIndex];
+                    }
+                }
             }
         }
-        
-        // Извлекаем правильный ответ (строка с ANSWER:)
-        let answer = '';
-        const answerLine = lines.find(line => line.startsWith('ANSWER:'));
-        if (answerLine) {
-            // Получаем текст правильного ответа вместо буквы
-            const answerLetter = answerLine.split('ANSWER:')[1].trim().charAt(0);
-            const answerIndex = answerLetter.charCodeAt(0) - 'A'.charCodeAt(0);
-            answer = options[answerIndex];
-        }
-        
-        return { question, options, answer };
-    }).filter(q => q.question && q.options.length > 0 && q.answer);
+    }
+    
+    // Добавляем последний вопрос
+    if (currentQuestion) {
+        questions.push(currentQuestion);
+    }
+    
+    // Фильтруем вопросы, у которых есть и вопрос, и варианты, и ответ
+    questions = questions.filter(q => 
+        q.question && q.options.length >= 2 && q.answer
+    );
     
     if (questions.length === 0) {
         alert('Не удалось загрузить вопросы. Проверьте формат файла.');
